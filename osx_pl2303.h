@@ -50,7 +50,21 @@
 #define kXOffChar '\x13'
 
 
-						                       
+
+// New Prolific 2303HX supported speeds form Manual ds_pl2303HXD_v1.1.doc
+// Revision Data Apr, 16 2007, Note from prolific (manual page 9):
+// By taking advantage of USB bulk transfer mode, large data buffers,
+// and automatic flow control, PL-2303HX is capable of achieving higher
+// throughput compared to traditional UART (Universal Asynchronous Receiver
+// Transmitter) ports. When real RS232 signaling is not required, baud rate
+// higher than 115200 bps could be used for even higher performance. The
+// flexible baud rate generator of PL-2303HX could be programmed to generate
+// any rate between 75 bps to 12M bps.
+
+// My note, however not all the baudrated may be supported by the driver.
+// The following ones are given for sure (on page 19) other rates maybe
+// available depending on the model.
+
 #define kLinkSpeedIgnored	0
 #define kLinkSpeed75		75
 #define kLinkSpeed150		150
@@ -69,13 +83,31 @@
 #define kLinkSpeed115200    115200
 #define kLinkSpeed230400	230400
 #define kLinkSpeed460800	460800
+#define kLinkSpeed614400	614400
+#define kLinkSpeed921600	921600
+#define kLinkSpeed1228800	1228800
+#define kLinkSpeed1843200	1843200
+#define kLinkSpeed2457600	2457600
+#define kLinkSpeed3000000	3000000
+#define kLinkSpeed6000000	6000000
 
 #define kDefaultBaudRate    9600
-#define kMaxBaudRate        460800     
+#define kMaxBaudRate        6000000
 #define kMinBaudRate        75
-#define kMaxCirBufferSize   4096
 
 
+// If not working at very high rate one can reconsider also
+// increasing the size of the circular buffer to store at
+// lease 0.1 sec: before was about 460800/10bits/10= 4608
+// now should be  6000000/10bits/10 = 60Kbytes in the worst case
+// In my code set it to 16K to balance among a convenient
+// speed and memory use.
+
+#define kMaxCirBufferSize   16384
+
+
+#define LAST_BYTE_COOLDOWN  100000
+#define BYTE_WAIT_PENALTY   2
 
 #define SPECIAL_SHIFT       (5)
 #define SPECIAL_MASK        ((1<<SPECIAL_SHIFT) - 1)
@@ -322,6 +354,10 @@ private:
     UInt8           fProductName[productNameLength];    // Actually the product String from the Device
     PortInfo_t      *fPort;         // The Port
     bool            fReadActive;    // usb read is active
+#if FIX_PARITY_PROCESSING
+    clock_sec_t			_fReadTimestampSecs;
+    clock_nsec_t        _fReadTimestampNanosecs;
+#endif
     bool            fWriteActive;   // usb write is active
     UInt8           fPowerState;    // off,on ordinal for power management
 	IORS232SerialStreamSync		*fNub;              // glue back to IOSerialStream side
@@ -422,6 +458,7 @@ private:
     
     QueueStatus     addBytetoQueue( CirQueue *Queue, char Value );
     QueueStatus     getBytetoQueue( CirQueue *Queue, UInt8 *Value );
+    QueueStatus     peekBytefromQueue( CirQueue *Queue, UInt8 *Value, size_t offset);
     QueueStatus     initQueue( CirQueue *Queue, UInt8 *Buffer, size_t Size );
     QueueStatus     closeQueue( CirQueue *Queue );
 	QueueStatus     flush( CirQueue *Queue );
